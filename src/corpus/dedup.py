@@ -59,8 +59,8 @@ def main():
             stats["kept"] += 1
 
     Path(args.out).write_text("".join(kept_lines), encoding="utf-8")
-    Path("data/clean/dedup_stats.json").write_text(
-        json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    stats_path = Path(args.out).parent / "dedup_stats.json"  # 跟随输出目录，便于测试隔离
+    stats_path.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     print(stats)
 
 

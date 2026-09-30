@@ -70,8 +70,8 @@ def main():
                 else:
                     fout.write(json.dumps({"text": para}, ensure_ascii=False) + "\n")
                     stats["kept"] += 1
-    Path("data/clean/clean_stats.json").write_text(
-        json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    stats_path = Path(args.out).parent / "clean_stats.json"  # 跟随输出目录，便于测试隔离
+    stats_path.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     print(stats)
 
 
