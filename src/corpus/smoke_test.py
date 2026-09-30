@@ -1,7 +1,7 @@
 """冒烟测试：合成小样本（不联网）跑通 clean -> dedup -> build 管道并校验契约。
 
 覆盖的噪声用例：HTML 标签、URL、精确重复、近似重复、过短段、英文占比过高段。
-运行：python3 src/corpus/smoke_test.py
+运行：python3 src/corpus/smoke_test.py（默认结束后自清理；加 --keep 保留产物供人工查看）
 """
 import json
 import subprocess
@@ -37,6 +37,7 @@ GENERATED = [
 
 
 def main():
+    keep = "--keep" in sys.argv  # 调试用：保留产物，默认自清理避免混入正式语料
     raw = Path("data/raw")
     raw.mkdir(parents=True, exist_ok=True)
     try:
@@ -55,8 +56,9 @@ def main():
         assert all(len(l) >= 50 for l in lines), "存在过短行"
         print(f"[OK] smoke test passed: {len(lines)} 段")
     finally:
-        for p in GENERATED:  # 自清理，避免测试样本混入正式语料
-            p.unlink(missing_ok=True)
+        if not keep:
+            for p in GENERATED:
+                p.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
