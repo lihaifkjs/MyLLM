@@ -25,23 +25,38 @@ def run(script):
     subprocess.run([sys.executable, f"src/corpus/{script}"], check=True)
 
 
+GENERATED = [
+    Path("data/raw/sample.jsonl"),
+    Path("data/clean/cleaned.jsonl"),
+    Path("data/clean/deduped.jsonl"),
+    Path("data/clean/clean_stats.json"),
+    Path("data/clean/dedup_stats.json"),
+    Path("data/clean/report.json"),
+    Path("data/corpus.txt"),
+]
+
+
 def main():
     raw = Path("data/raw")
     raw.mkdir(parents=True, exist_ok=True)
-    with open(raw / "sample.jsonl", "w", encoding="utf-8") as f:
-        for s in SAMPLES:
-            f.write(json.dumps(s, ensure_ascii=False) + "\n")
+    try:
+        with open(raw / "sample.jsonl", "w", encoding="utf-8") as f:
+            for s in SAMPLES:
+                f.write(json.dumps(s, ensure_ascii=False) + "\n")
 
-    for script in ["clean.py", "dedup.py", "build.py"]:
-        run(script)
+        for script in ["clean.py", "dedup.py", "build.py"]:
+            run(script)
 
-    lines = Path("data/corpus.txt").read_text(encoding="utf-8").splitlines()
-    assert lines, "corpus.txt 为空"
-    assert not any("<" in l and ">" in l for l in lines), "存在 HTML 残留"
-    assert not any("http" in l for l in lines), "存在 URL 残留"
-    assert len(lines) == len(set(lines)), "存在完全重复行"
-    assert all(len(l) >= 50 for l in lines), "存在过短行"
-    print(f"[OK] smoke test passed: {len(lines)} 段")
+        lines = Path("data/corpus.txt").read_text(encoding="utf-8").splitlines()
+        assert lines, "corpus.txt 为空"
+        assert not any("<" in l and ">" in l for l in lines), "存在 HTML 残留"
+        assert not any("http" in l for l in lines), "存在 URL 残留"
+        assert len(lines) == len(set(lines)), "存在完全重复行"
+        assert all(len(l) >= 50 for l in lines), "存在过短行"
+        print(f"[OK] smoke test passed: {len(lines)} 段")
+    finally:
+        for p in GENERATED:  # 自清理，避免测试样本混入正式语料
+            p.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

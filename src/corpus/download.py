@@ -84,13 +84,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
     ap.add_argument("--target-bytes", type=int, default=TARGET_BYTES)
+    ap.add_argument("--append", action="store_true",
+                    help="允许向已存在的 sample.jsonl 追加（续跑场景）")
     args = ap.parse_args()
+
+    state = load_state()
+    if OUT_FILE.exists() and not state["done"] and not args.append:
+        raise SystemExit(
+            f"{OUT_FILE} 已存在且无续跑记录，追加会混入旧数据；"
+            "请先删除该文件，或确认后加 --append")
 
     os.environ["HF_ENDPOINT"] = args.endpoint  # 须在 import huggingface_hub 前设置
     from huggingface_hub import HfApi
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    state = load_state()
     repo_files = HfApi().list_repo_files(REPO_ID, repo_type="dataset")
     paths = list(download_shard(repo_files, state, args.target_bytes))
     n = extract_text(paths, OUT_FILE)
