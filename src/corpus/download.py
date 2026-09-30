@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 DEFAULT_ENDPOINT = "https://hf-mirror.com"
-REPO_ID = "Skywork/Skywork-150B"
+REPO_ID = "Skywork/SkyPile-150B"
 TARGET_BYTES = 5 * 1024**3  # 约 5GB
 RAW_DIR = Path("data/raw")
 STATE_FILE = RAW_DIR / "download_state.json"
