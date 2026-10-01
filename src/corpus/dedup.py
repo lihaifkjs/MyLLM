@@ -16,6 +16,7 @@
 import argparse
 import hashlib
 import json
+import os
 import time
 from multiprocessing import Pool
 from pathlib import Path
@@ -45,6 +46,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--inp", default="data/clean/skypile_cleaned.jsonl")
     ap.add_argument("--out", default="data/clean/skypile_deduped.jsonl")
+    ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2),
+                    help="签名计算进程数，默认 CPU 核数一半（避免风扇满载）")
     args = ap.parse_args()
 
     stats = {"in": 0, "kept": 0, "drop_exact": 0, "drop_near": 0}
@@ -54,7 +57,7 @@ def main():
 
     with open(args.inp, encoding="utf-8") as fin, \
          open(args.out, "w", encoding="utf-8") as fout, \
-         Pool() as pool:
+         Pool(args.workers) as pool:
         for line, h, m in pool.imap(signature, fin, chunksize=CHUNK_SIZE):
             stats["in"] += 1
             if h in seen:
