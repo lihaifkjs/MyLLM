@@ -16,16 +16,19 @@ def main():
     ap.add_argument("--out", default="data/skypile_corpus.txt")
     args = ap.parse_args()
 
-    lines = Path(args.inp).read_text(encoding="utf-8").splitlines()
-    texts = [json.loads(line)["text"] for line in lines]
-    total_chars = sum(len(t) for t in texts)
-
-    with open(args.out, "w", encoding="utf-8") as f:
-        for t in texts:
-            f.write(t + "\n")
+    # 流式逐行处理：避免 read_text().splitlines() 把 \u2028 等字符也当行边界切断 JSON，
+    # 同时避免把整个文件载入内存
+    n_lines = 0
+    total_chars = 0
+    with open(args.inp, encoding="utf-8") as fin, open(args.out, "w", encoding="utf-8") as fout:
+        for line in fin:
+            text = json.loads(line)["text"]
+            fout.write(text + "\n")
+            n_lines += 1
+            total_chars += len(text)
 
     report = {
-        "lines": len(texts),
+        "lines": n_lines,
         "total_chars": total_chars,
         "token_estimate_upper": total_chars,
         "clean_stats": _load(clean_stats_path(Path(args.inp))),
