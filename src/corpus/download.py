@@ -17,8 +17,8 @@ DEFAULT_ENDPOINT = "https://hf-mirror.com"
 REPO_ID = "Skywork/SkyPile-150B"
 TARGET_BYTES = 5 * 1024**3  # 约 5GB
 RAW_DIR = Path("data/raw")
-STATE_FILE = RAW_DIR / "download_state.json"
-OUT_FILE = RAW_DIR / "sample.jsonl"
+STATE_FILE = RAW_DIR / "skypile_state.json"
+OUT_FILE = RAW_DIR / "skypile_sample.jsonl"
 MAX_RETRY = 3
 CHUNK = 1 << 20  # 1MB
 

@@ -1,12 +1,21 @@
 """冒烟测试：合成小样本（不联网）跑通 clean -> dedup -> build 管道并校验契约。
 
 覆盖的噪声用例：HTML 标签、URL、精确重复、近似重复、过短段、英文占比过高段。
-运行：python3 src/corpus/smoke_test.py（默认结束后自清理；加 --keep 保留产物供人工查看）
+所有产物使用 smoke_ 前缀，与正式语料（skypile_）完全隔离。
+运行：python3 src/corpus/smoke_test.py（默认保留产物供人工查看；加 --clean 跑完删除）
 """
 import json
 import subprocess
 import sys
 from pathlib import Path
+
+RAW = Path("data/raw/smoke_sample.jsonl")
+CLEANED = Path("data/clean/smoke_cleaned.jsonl")
+DEDUPED = Path("data/clean/smoke_deduped.jsonl")
+CORPUS = Path("data/smoke_corpus.txt")
+GENERATED = [RAW, CLEANED, DEDUPED, CORPUS,
+             CLEANED.with_suffix(".stats.json"), DEDUPED.with_suffix(".stats.json"),
+             CORPUS.with_suffix(".report.json")]
 
 BASE = ("人工智能是计算机科学的一个分支，它企图了解智能的实质，并生产出能以人类智能相似方式反应的智能机器，"
         "该领域的研究包括机器人、语言识别、图像识别、自然语言处理和专家系统等。")
@@ -21,42 +30,31 @@ SAMPLES = [
 ]
 
 
-def run(script):
-    subprocess.run([sys.executable, f"src/corpus/{script}"], check=True)
-
-
-GENERATED = [
-    Path("data/raw/sample.jsonl"),
-    Path("data/clean/cleaned.jsonl"),
-    Path("data/clean/deduped.jsonl"),
-    Path("data/clean/clean_stats.json"),
-    Path("data/clean/dedup_stats.json"),
-    Path("data/clean/report.json"),
-    Path("data/corpus.txt"),
-]
+def run(script, *args):
+    subprocess.run([sys.executable, f"src/corpus/{script}", *args], check=True)
 
 
 def main():
-    keep = "--keep" in sys.argv  # 调试用：保留产物，默认自清理避免混入正式语料
-    raw = Path("data/raw")
-    raw.mkdir(parents=True, exist_ok=True)
+    clean_up = "--clean" in sys.argv
     try:
-        with open(raw / "sample.jsonl", "w", encoding="utf-8") as f:
+        RAW.parent.mkdir(parents=True, exist_ok=True)
+        with open(RAW, "w", encoding="utf-8") as f:
             for s in SAMPLES:
                 f.write(json.dumps(s, ensure_ascii=False) + "\n")
 
-        for script in ["clean.py", "dedup.py", "build.py"]:
-            run(script)
+        run("clean.py", "--inp", str(RAW), "--out", str(CLEANED))
+        run("dedup.py", "--inp", str(CLEANED), "--out", str(DEDUPED))
+        run("build.py", "--inp", str(DEDUPED), "--out", str(CORPUS))
 
-        lines = Path("data/corpus.txt").read_text(encoding="utf-8").splitlines()
-        assert lines, "corpus.txt 为空"
+        lines = CORPUS.read_text(encoding="utf-8").splitlines()
+        assert lines, "corpus 为空"
         assert not any("<" in l and ">" in l for l in lines), "存在 HTML 残留"
         assert not any("http" in l for l in lines), "存在 URL 残留"
         assert len(lines) == len(set(lines)), "存在完全重复行"
         assert all(len(l) >= 50 for l in lines), "存在过短行"
-        print(f"[OK] smoke test passed: {len(lines)} 段")
+        print(f"[OK] smoke test passed: {len(lines)} 段，产物保留在 data/（smoke_ 前缀）")
     finally:
-        if not keep:
+        if clean_up:
             for p in GENERATED:
                 p.unlink(missing_ok=True)
 

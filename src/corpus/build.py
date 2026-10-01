@@ -12,8 +12,8 @@ from pathlib import Path
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--inp", default="data/clean/deduped.jsonl")
-    ap.add_argument("--out", default="data/corpus.txt")
+    ap.add_argument("--inp", default="data/clean/skypile_deduped.jsonl")
+    ap.add_argument("--out", default="data/skypile_corpus.txt")
     args = ap.parse_args()
 
     lines = Path(args.inp).read_text(encoding="utf-8").splitlines()
@@ -28,12 +28,18 @@ def main():
         "lines": len(texts),
         "total_chars": total_chars,
         "token_estimate_upper": total_chars,
-        "clean_stats": _load("data/clean/clean_stats.json"),
-        "dedup_stats": _load("data/clean/dedup_stats.json"),
+        "clean_stats": _load(clean_stats_path(Path(args.inp))),
+        "dedup_stats": _load(Path(args.inp).with_suffix(".stats.json")),
     }
-    Path("data/clean/report.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_path = Path(args.out).with_suffix(".report.json")  # 与前缀同名
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
+def clean_stats_path(inp: Path) -> Path:
+    """按命名约定 <tag>_deduped.jsonl -> <tag>_cleaned.stats.json 推导。"""
+    tag = inp.stem.removesuffix("_deduped")
+    return inp.with_name(f"{tag}_cleaned.stats.json")
 
 
 def _load(path: str):

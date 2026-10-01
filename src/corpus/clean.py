@@ -50,8 +50,8 @@ def zh_ratio(s: str) -> float:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--inp", default="data/raw/sample.jsonl")
-    ap.add_argument("--out", default="data/clean/cleaned.jsonl")
+    ap.add_argument("--inp", default="data/raw/skypile_sample.jsonl")
+    ap.add_argument("--out", default="data/clean/skypile_cleaned.jsonl")
     args = ap.parse_args()
 
     stats = {"docs": 0, "kept": 0, "drop_too_short": 0, "drop_too_long": 0, "drop_low_zh": 0}
@@ -70,7 +70,7 @@ def main():
                 else:
                     fout.write(json.dumps({"text": para}, ensure_ascii=False) + "\n")
                     stats["kept"] += 1
-    stats_path = Path(args.out).parent / "clean_stats.json"  # 跟随输出目录，便于测试隔离
+    stats_path = Path(args.out).with_suffix(".stats.json")  # 与前缀同名，避免跨数据集覆盖
     stats_path.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     print(stats)
 

@@ -43,8 +43,8 @@ def signature(line: str):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--inp", default="data/clean/cleaned.jsonl")
-    ap.add_argument("--out", default="data/clean/deduped.jsonl")
+    ap.add_argument("--inp", default="data/clean/skypile_cleaned.jsonl")
+    ap.add_argument("--out", default="data/clean/skypile_deduped.jsonl")
     args = ap.parse_args()
 
     stats = {"in": 0, "kept": 0, "drop_exact": 0, "drop_near": 0}
@@ -71,7 +71,7 @@ def main():
                 print(f"[progress] {stats['in']} 段, {rate:.0f} 段/s, kept={stats['kept']}",
                       flush=True)
 
-    stats_path = Path(args.out).parent / "dedup_stats.json"
+    stats_path = Path(args.out).with_suffix(".stats.json")  # 与前缀同名，避免跨数据集覆盖
     stats_path.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     print(stats)
 
