@@ -1,6 +1,3 @@
-data/raw/
-data/clean/
-data/corpus.txt
-data/skypile_corpus.txt
+data/
 __pycache__/
 .DS_Store
