@@ -37,7 +37,7 @@ def parse_args(argv=None):
     ap.add_argument("--grad-accum", type=int, default=16)
     ap.add_argument("--lr", type=float, default=6e-4)
     ap.add_argument("--min-lr", type=float, default=3e-5)
-    ap.add_argument("--warmup-steps", type=int, default=None, help="默认 max(100, 2% total)")
+    ap.add_argument("--warmup-steps", type=int, default=None, help="默认 max(100, 2%% total)")
     ap.add_argument("--total-steps", type=int, default=None, help="默认按 1 epoch 推出")
     ap.add_argument("--weight-decay", type=float, default=0.1)
     ap.add_argument("--grad-clip", type=float, default=1.0)
