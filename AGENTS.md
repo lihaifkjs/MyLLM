@@ -10,6 +10,9 @@
 - `docs/01-整体方案.md`：项目总体设计——教学向中文LLM（Llama结构~100M），流程为语料→tokenizer→预训练→SFT→DPO→评测→推理
 - `docs/02-语料处理.md`：模块1专题——Skypile-150B采样~5GB，规则清洗+精确/MinHash去重，输出`data/corpus.txt`（一行一段）
 - `docs/03-tokenizer.md`：模块2专题——sentencepiece训练BPE（byte_fallback），词表32k（含4特殊token），输出`tokenizer/tokenizer.model` + encode/decode接口
+- `docs/04-模型定义.md`：模块3专题——Llama结构（RMSNorm+SwiGLU+RoPE+MHA，~109.5M，d768/L12/ctx1024），输出`src/model/`（config.py + model.py），契约`forward(input_ids)→logits`
+- `docs/05-预训练.md`：模块4专题——离线encode为uint16 memmap，AdamW+cosine（峰值6e-4），tokens/step~25万，CUDA bf16/MPS fp32，输出`checkpoints/pretrain.ckpt`+`logs/pretrain_log.jsonl`，支持断点续训
+- `使用说明.md`：Windows+5080 预训练自包含运行手册（环境→冒烟→encode→训练→监控→故障处理），面向不看代码的执行者
 
 # 角色定位
 你是一个专业的智能助手，通常你在计算机领域有很强的能力，同时你也精通其他领域。你需要协助开发一些项目。在这些项目中你一般需要和我讨论思路构建prd，技术方案，架构设计。以及完成代码的编写。
