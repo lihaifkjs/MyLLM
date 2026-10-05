@@ -2,7 +2,7 @@
 > 输入契约（来自 docs/01）：`checkpoints/sft.ckpt` + `data/dpo.jsonl`（chosen/rejected 偏好对）；
 > 输出契约：`checkpoints/dpo.ckpt`。
 > 训练框架约定继承 docs/05（设备/精度/日志/ckpt 结构/可观测性），样本模板继承 docs/06，本文只写 DPO 特有决策。
-> **状态（2026-10-05）**：代码实现完成，冒烟测试 6 项全过（全量 `tests/` 30 passed）；真实数据已备好；**小流量端到端验证暂缓**（与本机 SFT 正式训练争抢 MPS，待其完成后补跑）。
+> **状态（2026-10-05）**：代码实现与 Mac 验证全部完成（冒烟 6 项 + 小流量端到端 + 过拟合检查），**待 Windows + 4070 正式训练**。
 
 # 目标
 直接偏好优化：相对一个**冻结的参考模型**（ref = sft.ckpt 副本，no_grad 不更新），让策略模型对 chosen 回答的相对概率升高、对 rejected 的相对概率降低。教学向，不追求 SOTA。
@@ -67,8 +67,8 @@ DPO loss（β 为控制偏离 ref 幅度的系数，大则保守、小则激进�
 - 冒烟测试（2026-10-05，M2/CPU）：`python3 -m pytest tests/test_dpo.py` 6 项全过（mask/截断保 eos/collate 前 N chosen 后 N rejected/response_logprob 数学/dpo_loss 数学/训练契约）；全量 `tests/` 30 passed
 - 数据（2026-10-05）：COIG-P 第 1 分片经 hf-mirror 下载（75MB），转换得单轮 111,823 对（丢弃 60），采样切分 train=29,700 / val=300
 - 小流量起步检查（2026-10-05，MPS，500 对，因与本机 SFT 正式训练争抢 GPU 仅完成 step 1）：loss=0.6931=log 2、reward_margin=0，符合"初始 policy=ref"的理论预期；`reward_acc=0.125` 而非精确 0，系 MPS 前向微小非确定性导致 policy/ref 输出有尾数差异，非 bug
-- 待补：小流量端到端（验证 reward_acc 从 ~0.5 上升）与过拟合检查（少量样本多 epoch，reward_acc→1.0），待本机 SFT 正式训练结束后补跑
+- 小流量端到端（2026-10-05，M2/MPS，500 对 × 31 步，16 对/step，12 分钟）：train_loss 0.693→0.655，train reward_acc ~0.5→0.81，val_reward_acc 0.50→0.62，reward_margin 0→0.61，无 NaN/OOM，ckpt 契约正常——偏好学习方向正确（31 步小 lr 下 val 涨幅温和属预期）
+- **过拟合检查（强证据，2026-10-05，M2/MPS）**：16 对 × 20 epoch（80 步，lr 峰值 1e-5），train_loss 0.693→**0.016**，reward_acc 第 5 步起稳定 **1.00**，val_reward_acc=1.0000——偏好对编码/双模型前向/DPO loss/优化器全链路数学正确
 
 # 待办
-- 补跑小流量端到端验证（SFT 正式训练完成后）
 - 正式训练在 Windows + 4070（届时 `使用说明.md` 增补 DPO 章节）
