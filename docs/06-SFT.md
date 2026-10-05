@@ -2,7 +2,7 @@
 > 输入契约（来自 docs/01）：`checkpoints/pretrain.ckpt` + `data/sft.jsonl`（Q/A 对）；
 > 输出契约：`checkpoints/sft.ckpt`。
 > 训练框架约定继承 docs/05（设备/精度/日志/ckpt 结构/可观测性），本文只写 SFT 特有决策。
-> **状态（2026-10-05）**：模块完成。正式训练（10 万条，M2/MPS）已跑完并验收，`checkpoints/sft.ckpt` 为正式产物。
+> **状态（2026-10-05）**：模块完成。正式训练（10 万条 × 1 epoch）已在 M2/MPS 与 Windows/4070 Ti（CUDA bf16 首次实机验证）双平台跑完；`checkpoints/sft.ckpt` 当前为 **Windows 版**（val ppl 56，基于 train_loss 3.83 新预训练基座），M2 版日志已备份 `logs/sft_log_m2_official.jsonl`。
 
 # 目标
 用中文指令数据把 pretrain 基座微调成"按模板回答问题"的模型；**loss 只算回答部分（问题 mask 为 -100）**。教学向，不追求 SOTA。
@@ -62,6 +62,36 @@
 - **过拟合检查（强证据）**：40 条样本 × 30 epoch（300 步，lr 1e-3），train loss 7.86→**0.040**；`sample.py` 对训练集内问题精确复现标准答案并遇 `<eos>` 正确停止——模板拼接/loss mask/优化器/生成全链路数学正确。val ppl 爆炸与 loss spike 告警均为过拟合预期现象（同 docs/05 记录的误报规律）
 - **正式训练（2026-10-05，M2/MPS 完成）**：10 万条 × 1 epoch，773 步 × 128 样本/step（micro4×accum32），3.5 小时。train loss 7.72→6.40，val ppl 1019→**687**（step 100→773 全程单调下降），grad_norm ~1.5~2.4，无 NaN/OOM。ckpt 契约复核通过（step=773，前向 (1,16,32000) 无 NaN）。曲线见 `logs/sft_curve.png`
 - 生成抽查（正式 ckpt，贪心）：输出呈"回答"口吻且能停止，但**内容连贯性差**（如"失眠了怎么办？→答案：我喜欢你。"）。根因在基座：预训练仅用 1/10 语料 1 epoch（val ppl 1170），100M 模型的语言/知识能力上限如此；SFT 只负责教会格式，符合教学向预期。若想要更像样的回答，方向是增强预训练（更多语料/epoch），不是加大 SFT
-- **当前产物状态**：`checkpoints/sft.ckpt`、`data/sft_train/val.jsonl`（10 万条版）、`logs/sft_log.jsonl`、`logs/sft_curve.png` 均为正式产物；小流量产物备份为 `logs/sft_log_smallflow.jsonl` / `sft_curve_smallflow.png`
-- 无新增依赖（下载复用 httpx）；CUDA bf16 路径尚未实机验证（正式训练实际在 M2/MPS 完成，Windows 手册留作复现/重训用）
-- 边界说明：`sample.py` 是单轮贪心抽查脚本；多轮交互对话、temperature 采样属模块 7（评测与推理）
+- **Windows 正式训练（2026-10-05，Windows/4070 Ti 12GB，CUDA bf16 首次实机验证）**：10 万条 × 1 epoch，773 步 × 128 样本/step（**micro8 × accum16**，非文档默认 micro16），**22 分钟**（2.1 s/step）。train_loss 5.25→3.77，val_ppl **88→56** 全程单调下降（8 个 eval 点），无 NaN/OOM，监督 token 占比 64.3%，ckpt 契约正常。基座对比：M2 基座（val ppl 1170）SFT 后 val ppl 687；本次新基座（train_loss 3.83）SFT 后 val ppl 56——**基座质量决定 SFT 上限**，验证 docs/01 流程假设
+- 生成抽查（Windows 正式 ckpt，贪心）：4/5 正常停止且 topical，1/5 无限重复（"中国的首都是哪里"→"中国，中国，…"），内容整体肤浅——100M 模型 + 纯贪心的固有天花板；复读问题缓解归后续模块（采样/解码策略）
+- **坑点与教训（Windows 实录）**：
+  - ① **micro16 默认在本机不可用**：12GB 显存打满（11.2/12.2GB）触发共享内存回退，步速从 2 s/step 劣化到 60~70 s/step（tok_s 仅 ~800），表象是"训练极慢"而非 OOM 报错；**步速比基线慢一个数量级 = 显存压力早期信号**，应先查显存（pynvml）再决定是否继续硬等
+  - ② **nvidia-smi 在部分终端报 "Failed to initialize NVML"**：Windows 会话隔离所致，与 CUDA 计算无关（同终端 torch CUDA 正常）；改用 pynvml 查询（命令已记入 使用说明.md §6）
+  - ③ **训练中途发生 nvlddmkm Event 153**（GPU 驱动级崩溃，进程消失且无 traceback）；当时恰在执行 taskkill 强杀 CUDA 进程，可能为诱因；重跑后未复发。本机 10-04 预训练阶段亦有崩溃排查记录（logs/_crash.ps1、_whea.ps1、_set_plimit.py）
+  - ④ **日志会跨轮次追加**：Windows 训练直接追加在 M2 日志后，绘图前须按"最后一个 step==1"拆分（logs/_live_plot.py 同款逻辑）；M2 正式记录已备份 `logs/sft_log_m2_official.jsonl`
+  - ⑤ **checkpoint 每 200 步才保存**：早于 step 200 崩溃 = 无 ckpt 只能重跑（本次两次崩溃均损失全部进度）
+  - ⑥ **本机 conda 未入 PATH**：终端命令须用全路径 `C:\Users\fkjslee\miniconda3\envs\myllm\python.exe`（系统默认 python 无 torch）
+  - ⑦ **HF 直连不可用**：huggingface.co ConnectTimeout，数据下载需走 hf-mirror.com（同 COIG-P 下载通道）
+- **当前产物状态**：`checkpoints/sft.ckpt`（Windows 版，11:15 生成）+ `data/sft_train/val.jsonl`（10 万条版）+ `logs/sft_log.jsonl`（含 M2+Windows 两段，拆分逻辑见坑点④）为当前正式产物；M2 版训练日志备份 `logs/sft_log_m2_official.jsonl`；小流量产物备份 `logs/sft_log_smallflow.jsonl` / `sft_curve_smallflow.png`
+- 无新增依赖（下载复用 httpx）；~~CUDA bf16 路径尚未实机验证~~ → **已于 2026-10-05 在 Windows/4070 Ti 完成实机验证**（实测结论见验证记录"坑点与教训"）
+- 边界说明：`sample.py` 是单轮贪心抽查脚本；多轮交互对话、temperature 采样属后续模块（评测与推理，文档待建）——"复读/内容肤浅"问题的缓解依赖该模块的解码策略
+
+# 模型当前状态与使用效果（2026-10-05 实测）
+- **当前正式产物**：`checkpoints/sft.ckpt`（Windows 版，基于 train_loss 3.83 新预训练基座，val ppl 56）
+- **会做什么**：识别 `<bos>用户：…\n助手：…<eos>` 单轮格式并作答；多数情况能在合理位置停止；回答 topical（能扣题）
+- **不会做什么**：内容肤浅无细节、不能写可用代码、开放式问题易复读或复读式罗列、偶尔直接复述问题
+- **实测记录**（sample.py 贪心生成，问答节选）：
+  | 问题 | 输出（节选） | 判定 |
+  |---|---|---|
+  | 中国的首都是哪里？ | "中国，中国，中国，…"（无限重复至上限） | ❌ 复读 |
+  | 如何用Python实现快速排序？ | "1. 排序：使用Python或Python编写代码。2. …"（同句循环） | ❌ 复读 |
+  | 请解释什么是光合作用 | "光合作用是光合作用中的一种，它包括光、电、热、化学、生物等。" | ⚠️ 扣题但空洞 |
+  | 写一句关于春天的诗 | "春日暖阳照春。" | ⚠️ 尚可 |
+  | 失眠了怎么办？/ 感冒了应该注意什么？ | 直接复述问题 | ❌ 未作答 |
+- **与 M2 版对比**：M2 版（val ppl 687）"会停但内容连贯性差"；Windows 版（val ppl 56）停止行为更好、更扣题，复读仍偶发——改善来自基座而非 SFT 本身，符合"基座质量决定 SFT 上限"的结论
+- **使用建议**：适合演示格式学习效果与短问答 demo；不要期待代码生成/长推理解答；复读问题待后续模块用解码策略（repetition penalty / temperature 采样）缓解后再评估
+
+# 待办
+- [ ] `使用说明.md` 增补 Windows SFT 修正：micro8 × accum16（micro16 在本机不可用）、python 全路径说明、实测基线 2.1 s/step ≈ 22 分钟、"步速异常先查显存"自检步骤
+- [ ] "中国的首都是哪里"复读样本：留待后续模块用解码策略（repetition penalty / 采样）验证缓解效果
+- [ ] git 提交：建议 `docs(sft): 增补 Windows/4070 正式训练验证记录与坑点`（涉及 `docs/06-SFT.md`、`使用说明.md`）

@@ -12,7 +12,7 @@
 - `docs/03-tokenizer.md`：模块2专题——sentencepiece训练BPE（byte_fallback），词表32k（含4特殊token），输出`tokenizer/tokenizer.model` + encode/decode接口
 - `docs/04-模型定义.md`：模块3专题——Llama结构（RMSNorm+SwiGLU+RoPE+MHA，~109.5M，d768/L12/ctx1024），输出`src/model/`（config.py + model.py），契约`forward(input_ids)→logits`
 - `docs/05-预训练.md`：模块4专题——离线encode为uint16 memmap，AdamW+cosine（峰值6e-4），tokens/step~25万，CUDA bf16/MPS fp32，输出`checkpoints/pretrain.ckpt`+`logs/pretrain_log.jsonl`，支持断点续训
-- `docs/06-SFT.md`：模块5专题【已完成】——Firefly采样10万条转`data/sft.jsonl`（instruction/output），模板`<bos>用户：...\n助手：...<eos>`且loss只算回答+eos，lr峰值2e-5训1epoch，输出`checkpoints/sft.ckpt`+`logs/sft_log.jsonl`（M2正式训练 val ppl 687）
+- `docs/06-SFT.md`：模块5专题【已完成】——Firefly采样10万条转`data/sft.jsonl`（instruction/output），模板`<bos>用户：...\n助手：...<eos>`且loss只算回答+eos，lr峰值2e-5训1epoch，输出`checkpoints/sft.ckpt`+`logs/sft_log.jsonl`（M2 val ppl 687；2026-10-05 Windows/4070 复现 val ppl 56，需 micro8×accum16，详见文档坑点记录）
 - `docs/07-DPO.md`：模块6专题——COIG-P采样3万对转`data/dpo.jsonl`（instruction/chosen/rejected），ref=冻结sft.ckpt、β=0.1、lr峰值5e-7训1epoch，输出`checkpoints/dpo.ckpt`+`logs/dpo_log.jsonl`（核心指标reward_acc）
 - `使用说明.md`：Windows+4070 预训练+SFT 自包含运行手册（环境→冒烟→数据→训练→监控→抽查→故障处理），面向不看代码的执行者
 
