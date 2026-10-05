@@ -23,15 +23,19 @@ def main() -> None:
             elif r["type"] == "eval":
                 eval_steps.append(r["step"])
                 val_loss.append(r["val_loss"])
-                val_ppl.append(r["val_ppl"])
+                if "val_ppl" in r:  # DPO 等日志无 ppl，仅在有该字段时画 ppl 面板
+                    val_ppl.append(r["val_ppl"])
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    if val_ppl:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+        ax2.plot(eval_steps, val_ppl, "o-", color="tab:red")
+        ax2.set(xlabel="step", ylabel="ppl", title="Val Perplexity")
+    else:
+        fig, ax1 = plt.subplots(figsize=(6, 4))
     ax1.plot(train_steps, train_loss, label="train")
     ax1.plot(eval_steps, val_loss, "o-", label="val")
     ax1.set(xlabel="step", ylabel="loss", title="Loss")
     ax1.legend()
-    ax2.plot(eval_steps, val_ppl, "o-", color="tab:red")
-    ax2.set(xlabel="step", ylabel="ppl", title="Val Perplexity")
     fig.tight_layout()
     fig.savefig(args.out, dpi=150)
     print(f"曲线已保存：{args.out}")
