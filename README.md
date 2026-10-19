@@ -16,18 +16,18 @@
 | 2 | Tokenizer | `tokenizer/tokenizer.model` + encode/decode 接口 | ✅ | v0.2-tokenizer |
 | 3 | 模型定义 | `src/model/`：`forward(input_ids) → logits` | ✅ | v0.3-model |
 | 4 | 预训练 | `checkpoints/pretrain.ckpt` + loss 曲线 | ✅（M2，val ppl 1170） | v0.4-pretrain |
-| 5 | SFT | `checkpoints/sft.ckpt`（loss 只算回答+eos） | ✅（M2，val ppl 687） | — |
-| 6 | DPO | `checkpoints/dpo.ckpt`（ref=冻结 sft，β=0.1） | ✅（Mac 验证完，待 4070 正式训练） | v0.6-dpo-implement |
-| 7 | 评测与推理 | 困惑度报告、case 对比、命令行对话 | ⬜ | — |
+| 5 | SFT | `checkpoints/sft.ckpt`（loss 只算回答+eos） | ✅（M2 val ppl 687 / 4070 val ppl 56.18） | v0.5-sft-windows |
+| 6 | DPO | `checkpoints/dpo.ckpt`（ref=冻结 sft，β=0.1） | ✅（4070 正式训练，val_reward_acc 0.5→0.80） | v0.6-dpo-implement |
+| 7 | 评测与推理 | 困惑度报告、case 对比、命令行对话 | ✅（C-Eval 26.37%、复读 0/12） | v0.7-eval-and-chat |
 
 ## 快速开始
 
 ```bash
 pip install -r requirements.txt
-python3 -m pytest tests/        # 全部冒烟测试（30 项）
+python3 -m pytest tests/        # 全部冒烟测试（39 项）
 ```
 
-正式训练（Windows + 4070）的完整自包含手册见 **[使用说明.md](使用说明.md)**（环境→冒烟→数据→训练→监控→抽查→故障处理）。
+正式训练（Windows + 4070）的完整自包含手册见 **[使用说明.md](使用说明.md)**（环境→冒烟→数据→训练→监控→抽查→故障处理）；训练完的真实生成效果（50 个 demo 及质量分档）见 **[实际效果.md](实际效果.md)**。
 
 各阶段入口（均支持 `--help`）：
 
@@ -41,6 +41,12 @@ python -m src.sft.sample
 python -m src.dpo.prepare_data      # 国内可设 HF_ENDPOINT=https://hf-mirror.com
 python -m src.dpo.train
 python -m src.dpo.sample
+
+# 评测与对话（模块7）
+python -m src.eval.ppl --ckpt checkpoints/dpo.ckpt      # 统一困惑度入口（按 ckpt 名自动选语料）
+python -m src.eval.ceval --ckpt checkpoints/dpo.ckpt    # C-Eval val 子集 800 题 logprob 打分
+python -m src.eval.case_compare                         # sft vs dpo 固定 12 题对照表
+python -m src.chat.chat                                 # 带复读缓解解码的多轮对话
 
 # 预训练（模块4）
 python -m src.pretrain.encode_corpus
@@ -59,6 +65,8 @@ python -m src.pretrain.plot_curve --log logs/dpo_log.jsonl --out logs/dpo_curve.
 - `05-预训练.md`：memmap 数据管线、AdamW+cosine、断点续训、可观测性
 - `06-SFT.md`：模板 `<bos>用户：...\n助手：...<eos>`，loss 只算回答+eos
 - `07-DPO.md`：DPO 原理（ref 模型 + β）、COIG-P 数据、reward_acc 指标
+- `08-评测与推理.md`：ppl / C-Eval / 案例对照 / 多轮对话与复读缓解解码
+- 根目录 `实际效果.md`：端到端真实效果（三阶段指标 + 曲线 + 50 个生成 demo 及分档）
 
 ## 目录结构
 
@@ -70,7 +78,9 @@ src/
   pretrain/   # 模块4：encode_corpus / dataset / train / plot_curve
   sft/        # 模块5：prepare_data / dataset / train / sample
   dpo/        # 模块6：prepare_data / dataset / train / sample
-tests/        # 各模块冒烟测试（30 项）
+  eval/       # 模块7：ppl / ceval / case_compare / questions
+  chat/       # 模块7：decoding（复读缓解）/ chat（多轮 REPL）
+tests/        # 各模块冒烟测试（39 项）
 docs/         # 专题设计文档（文档驱动开发）
 checkpoints/  # 权重产物（.ckpt，结构 {model, optimizer, step, config}）
 data/         # 语料与数据集产物（.txt / .jsonl）
