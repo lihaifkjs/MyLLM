@@ -15,10 +15,30 @@
 | 1 | 语料处理 | `data/skypile_corpus.txt`（一行一段） | ✅ | v0.1-corpus |
 | 2 | Tokenizer | `tokenizer/tokenizer.model` + encode/decode 接口 | ✅ | v0.2-tokenizer |
 | 3 | 模型定义 | `src/model/`：`forward(input_ids) → logits` | ✅ | v0.3-model |
-| 4 | 预训练 | `checkpoints/pretrain.ckpt` + loss 曲线 | ✅（M2，val ppl 1170） | v0.4-pretrain |
+| 4 | 预训练 | `checkpoints/pretrain.ckpt` + loss 曲线 | ✅（M2 val ppl 1170 / 4070 语料尾部 ppl 59.78） | v0.4-pretrain |
 | 5 | SFT | `checkpoints/sft.ckpt`（loss 只算回答+eos） | ✅（M2 val ppl 687 / 4070 val ppl 56.18） | v0.5-sft-windows |
 | 6 | DPO | `checkpoints/dpo.ckpt`（ref=冻结 sft，β=0.1） | ✅（4070 正式训练，val_reward_acc 0.5→0.80） | v0.6-dpo-implement |
 | 7 | 评测与推理 | 困惑度报告、case 对比、命令行对话 | ✅（C-Eval 26.37%、复读 0/12） | v0.7-eval-and-chat |
+
+## 训练效果（Windows + RTX 4070 Ti 12GB，CUDA bf16）
+
+| 阶段 | 规模 | 耗时 | 关键指标 |
+|---|---|---|---|
+| 预训练 | 2,107 步 × 262,144 token/步 ≈ **5.5 亿 token**（1 epoch） | — | 语料尾部 ppl **59.78** |
+| SFT | 10 万条，773 步 × 128 条/步（micro8 × accum16，≈2.1 s/step） | 22~27 分钟 | val ppl **56.18**（loss 只算回答+eos 生效） |
+| DPO | 29,700 对，464 步 × 64 对/步（micro4 对 × accum16，≈5.1~5.7 s/step） | 41 分钟 | **val_reward_acc 0.5 → 0.80**，val_loss 0.693 → 0.445 |
+
+客观评测（`checkpoints/sft.ckpt` vs `checkpoints/dpo.ckpt`，均为本机实测）：
+
+| 评测 | sft | dpo | 参照 |
+|---|---|---|---|
+| C-Eval val 800 题 | 25.50% | 26.37% | 随机线 25%，100M 基本贴随机线属预期 |
+| ppl（sft_val 回答语料） | 79.62 | 80.06 | dpo 略高符合"牺牲似然换偏好" |
+| 12 题机械复读率 | 0/12 | 0/12 | 采样 + 复读缓解解码，复读已被控制 |
+
+> **显存坑点**：12GB 下 SFT 需 micro8 × accum16、DPO 需 micro4 对 × accum16（双模型前向，micro 对数要减半），默认值会打满显存触发共享内存回退。
+> **能力边界**：50 个真实 demo 分档为 ~8 条基本可用 / ~30 条语句通顺但答错跑题 / ~12 条无效输出，事实与数学类基本不可用——属 100M 规模的固有短板而非训练故障，详见 **[实际效果.md](实际效果.md)**。
+
 
 ## 快速开始
 
