@@ -2,7 +2,7 @@
 > 输入契约（来自 docs/01）：`checkpoints/sft.ckpt` + `data/dpo.jsonl`（chosen/rejected 偏好对）；
 > 输出契约：`checkpoints/dpo.ckpt`。
 > 训练框架约定继承 docs/05（设备/精度/日志/ckpt 结构/可观测性），样本模板继承 docs/06，本文只写 DPO 特有决策。
-> **状态（2026-10-05）**：代码实现与 Mac 验证全部完成（冒烟 6 项 + 小流量端到端 + 过拟合检查），**待 Windows + 4070 正式训练**。
+> **状态（2026-10-05）**：模块完成。代码实现、Mac 验证（冒烟 6 项 + 小流量端到端 + 过拟合检查）与 **Windows/4070 Ti 正式训练**（29,700 对 × 1 epoch，val_reward_acc 0.5→0.80）全部完成，`checkpoints/dpo.ckpt` 为当前正式产物。
 
 # 目标
 直接偏好优化：相对一个**冻结的参考模型**（ref = sft.ckpt 副本，no_grad 不更新），让策略模型对 chosen 回答的相对概率升高、对 rejected 的相对概率降低。教学向，不追求 SOTA。
@@ -69,6 +69,14 @@ DPO loss（β 为控制偏离 ref 幅度的系数，大则保守、小则激进�
 - 小流量起步检查（2026-10-05，MPS，500 对，因与本机 SFT 正式训练争抢 GPU 仅完成 step 1）：loss=0.6931=log 2、reward_margin=0，符合"初始 policy=ref"的理论预期；`reward_acc=0.125` 而非精确 0，系 MPS 前向微小非确定性导致 policy/ref 输出有尾数差异，非 bug
 - 小流量端到端（2026-10-05，M2/MPS，500 对 × 31 步，16 对/step，12 分钟）：train_loss 0.693→0.655，train reward_acc ~0.5→0.81，val_reward_acc 0.50→0.62，reward_margin 0→0.61，无 NaN/OOM，ckpt 契约正常——偏好学习方向正确（31 步小 lr 下 val 涨幅温和属预期）
 - **过拟合检查（强证据，2026-10-05，M2/MPS）**：16 对 × 20 epoch（80 步，lr 峰值 1e-5），train_loss 0.693→**0.016**，reward_acc 第 5 步起稳定 **1.00**，val_reward_acc=1.0000——偏好对编码/双模型前向/DPO loss/优化器全链路数学正确
+- **Windows 正式训练（2026-10-05，Windows/4070 Ti 12GB，CUDA bf16）**：29,700 对 × 1 epoch，464 步 × 64 对/step（**micro4 对 × accum16**，非文档默认 micro8 对），**41 分钟**（5.1~5.7 s/step）。train_loss 0.693→~0.45，val_loss 0.6931→**0.4447**，**val_reward_acc 0.5→0.80**（5 个 eval 点 0.75/0.80/0.80/0.8125/0.80），train reward_acc 末段 ~0.91，reward_margin 0→~0.5，无 NaN/OOM，ckpt 契约正常。基座为 Windows 版 sft.ckpt（val ppl 56，优于 Mac 验证时的基座），val 涨幅（+0.30）大于 M2 小流量（+0.12），符合"基座质量决定上限"的已有结论
+  - 与 MPS 不同：CUDA 下 step 1 的 reward_acc 精确为 0、loss 精确 = log 2（前向确定性，无线次差异）
+  - 曲线：`logs/dpo_curve.png`，train/val 贴合下降无过拟合间隙；日志 `logs/dpo_log.jsonl`
+- **生成抽查（Windows 正式 ckpt，sample.py 贪心对照）**：DPO 与 SFT 输出差异可见（如"中国的首都是哪里"SFT 复读"中国，"、DPO 复读"西方的第三是"），但复读/复述问题/内容肤浅依旧——属 100M 基座 + 纯贪心解码的固有短板（同 docs/06 结论），**缓解归模块 7 解码策略**；DPO 本模块的核心指标 val_reward_acc 达标（0.5→0.80）
+- **坑点（Windows 实录）**：
+  - ① **默认 micro8 对在本机不可用**：policy+ref 双前向下 16 条序列/microbatch 把 12GB 显存打满（12195/12282 MB），触发共享内存回退——首步 6 分钟未完成即判定（步速自检有效，同 docs/06 坑点①规律）；改 micro4 对 × accum16（对/step 不变）后正常。DPO 显存经验：**micro 对数要比 SFT 的 micro 数减半**
+  - ② pyarrow 在训练环境中缺失（requirements.txt 已含但环境未装），pip 直连超时需走清华镜像 `-i https://pypi.tuna.tsinghua.edu.cn/simple`
+  - ③ COIG-P 数据 Mac 版未同步到 Windows，本机经 hf-mirror 重新下载分片 0 并重新转换采样（结果与 Mac 完全一致：111,823 对、train=29,700/val=300，seed=42 可复现）
 
 # 待办
-- 正式训练在 Windows + 4070（届时 `使用说明.md` 增补 DPO 章节）
+- 模块 7（评测与推理：复读缓解的解码策略、MMLU/C-Eval 子集、多轮对话）
